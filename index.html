@@ -38,9 +38,8 @@
   <div class="tip">Drag to rotate · Scroll to zoom</div>
   <div class="corner">Made with ❤️ + Three.js</div>
 
-  <!-- Three.js & controls from CDN -->
+  <!-- Three.js from CDN (no external controls needed) -->
   <script src="https://unpkg.com/three@0.159.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.159.0/examples/js/controls/OrbitControls.js"></script>
 
   <script>
   // ===== Basic setup =====
@@ -52,13 +51,8 @@
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
-  camera.position.set(0, 0.6, 3.2);
-
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.enablePan = false;
-  controls.minDistance = 1.6;
-  controls.maxDistance = 5.5;
+  let camZ = 3.2; // manual zoom control
+  camera.position.set(0, 0.6, camZ);
 
   // ===== Lights =====
   const ambient = new THREE.AmbientLight(0xffffff, 0.35); scene.add(ambient);
@@ -135,7 +129,7 @@
     mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObjects([moon]);
-    if (hits.length) nextMessage();
+    if (hits.length && !dragging) nextMessage();
   });
 
   function pulse(el){
@@ -146,14 +140,36 @@
     ], { duration: 360, easing: 'cubic-bezier(.2,.7,.2,1)' });
   }
 
+  // ===== Manual rotate & zoom (no OrbitControls) =====
+  let dragging = false, lastX = 0, lastY = 0;
+  let rotX = 0, rotY = 0; // target rotations
+
+  window.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+  window.addEventListener('pointerup',   () => { dragging = false; });
+  window.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    rotY += dx * 0.005; // horizontal drag -> rotate Y
+    rotX += dy * 0.005; // vertical drag -> tilt a bit
+    rotX = Math.max(-0.8, Math.min(0.8, rotX));
+  });
+  window.addEventListener('wheel', (e) => {
+    camZ += e.deltaY * 0.0015;
+    camZ = Math.max(1.6, Math.min(5.5, camZ));
+  }, { passive: true });
+
   // ===== Animate =====
-  let t = 0;
   function tick(){
     requestAnimationFrame(tick);
-    t += 0.005;
-    moon.rotation.y += 0.0009; // slow spin
-    glow.rotation.y -= 0.0003;
-    controls.update();
+    // subtle idle spin
+    moon.rotation.y += 0.0006;
+    glow.rotation.y -= 0.0002;
+    // apply user drag rotation smoothly
+    moon.rotation.y += (rotY - moon.rotation.y) * 0.08;
+    moon.rotation.x += (rotX - moon.rotation.x) * 0.08;
+    camera.position.z += (camZ - camera.position.z) * 0.1;
     renderer.render(scene, camera);
   }
   tick();
